@@ -1,0 +1,58 @@
+{% extends 'base.html' %}
+
+{% block title %}System Monitor{% endblock %}
+
+{% block content %}
+    <h1>System Monitor</h1>
+    <!-- ==================== Live Data ==================== -->
+    <div class="monitor-section">
+        <h2>Live Data</h2>
+        <div class="status-item">
+            <span class="status-label">Current Melt Temperature:</span>
+            <span class="status-value">{{ "%.1f"|format(status.currentMeltTemp | default(0)) }} °C</span>
+        </div>
+        <div class="status-item">
+            <span class="status-label">Current Process Stage:</span>
+            <span class="status-value">{{ status.currentStage | default('N/A') }}</span>
+        </div>
+    </div>
+
+    <!-- ==================== Storage Status ==================== -->
+    <div class="monitor-section">
+        <h2>Storage Status</h2>
+         <div class="status-item">
+            <span class="status-label">Persistent Log Usage:</span>
+            <span class="status-value">
+                {{ "%.1f"|format(status.persistentLogUsageMB | default(0)) }} / {{ status.persistentLogMaxMB | default(0) }} MB
+                ({% if status.persistentLogMaxMB and status.persistentLogMaxMB > 0 %}
+                    {{ "%.1f"|format((status.persistentLogUsageMB | default(0)) * 100 / status.persistentLogMaxMB) }}%
+                {% else %}
+                    N/A%
+                {% endif %})
+            </span>
+        </div>
+         <div class="status-item">
+            <span class="status-label">Critical Events Stored:</span>
+            <span class="status-value">
+                {{ status.criticalEventsStored | default(0) }}
+                {% if status.criticalEventsMax != 'N/A' %}
+                    / {{ status.criticalEventsMax | default(0) }}
+                {% endif %}
+                Events
+            </span>
+        </div>
+    </div>
+
+    <!-- ==================== Network Status ==================== -->
+    <div class="monitor-section">
+        <h2>Network Status</h2>
+        <div class="status-item">
+            <span class="status-label">Upload Queue Size:</span>
+            <span class="status-value">{{ status.uploadQueueSize | default(0) }} items</span>
+        </div>
+         <div class="status-item">
+            <span class="status-label">Last Upload Attempt:</span>
+            <span class="status-value">{{ status.lastUploadTime | default('Never') }}</span>
+        </div>
+    </div>
+{% endblock %}

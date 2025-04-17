@@ -1,0 +1,153 @@
+{% extends 'base.html' %}
+
+{% block title %}System Configuration{% endblock %}
+
+{% block content %}
+    <h1>System Configuration</h1>
+
+    <!-- The form and its sections go here, unchanged from before -->
+    <form action="{{ url_for('update_config') }}" method="post">
+
+        <!-- ==================== System Info ==================== -->
+        <div class="config-section">
+            <h2>System Info</h2>
+            <label for="systemInfo_rtosSchedulerPolicy">RTOS Scheduler Policy:</label>
+            <input type="text" id="systemInfo_rtosSchedulerPolicy" name="systemInfo_rtosSchedulerPolicy" value="{{ config.systemInfo.rtosSchedulerPolicy | default('FIFO') }}">
+            <div class="explanation">RTOS task scheduling policy. Options: FIFO, RR</div>
+
+            <label for="systemInfo_rtosTimeSliceMsRR">RTOS Time Slice (ms):</label>
+            <input type="text" id="systemInfo_rtosTimeSliceMsRR" name="systemInfo_rtosTimeSliceMsRR" value="{{ config.systemInfo.rtosTimeSliceMsRR | default(10) }}">
+            <div class="explanation">Duration each task runs before switching (only for Round Robin above). Enter a number.</div>
+        </div>
+
+        <!-- ==================== Persistent Logging ==================== -->
+        <div class="config-section">
+            <h2>Persistent Logging (for Cloud Upload)</h2>
+            <label for="persistentLogging_enabled">Enabled:</label>
+            <input type="text" id="persistentLogging_enabled" name="persistentLogging_enabled" value="{{ config.persistentLogging.enabled | default(true) }}">
+            <div class="explanation">Options: true, false</div>
+
+            <label for="persistentLogging_samplingRateHz">Sampling Rate (Hz):</label>
+            <input type="text" id="persistentLogging_samplingRateHz" name="persistentLogging_samplingRateHz" value="{{ config.persistentLogging.samplingRateHz | default(10) }}">
+            <div class="explanation">Should be pretty small (like 10Hz) as this is data that is persisted no matter what. Enter a number.</div>
+
+            <label for="persistentLogging_maxLogSizeMB">Max Log Size (MB):</label>
+            <input type="text" id="persistentLogging_maxLogSizeMB" name="persistentLogging_maxLogSizeMB" value="{{ config.persistentLogging.maxLogSizeMB | default(512) }}">
+            <div class="explanation">Max size for the persistent logs before we start FIFOing old stuff. Enter a number.</div>
+
+            <label for="persistentLogging_logItems">Log Items:</label>
+            <input type="text" id="persistentLogging_logItems" name="persistentLogging_logItems" value="{{ (config.persistentLogging.logItems | default([])) | join(', ') }}">
+            <div class="explanation">Specifically items we want persisted to cloud only (eg: Timestamp, MeltTemp, Stage).</div>
+        </div>
+
+        <!-- ==================== Critical Event Capture ==================== -->
+        <div class="config-section">
+            <h2>Critical Event Capture (Dashcam Logic)</h2>
+            <label for="criticalEventCapture_enabled">Enabled:</label>
+            <input type="text" id="criticalEventCapture_enabled" name="criticalEventCapture_enabled" value="{{ config.criticalEventCapture.enabled | default(true) }}">
+            <div class="explanation">For high frequency critical event capture. Options: true, false</div>
+
+            <label for="criticalEventCapture_captureRateHz">Capture Rate (Hz):</label>
+            <input type="text" id="criticalEventCapture_captureRateHz" name="criticalEventCapture_captureRateHz" value="{{ config.criticalEventCapture.captureRateHz | default(100) }}">
+            <div class="explanation">Should match real data rate as we want as much data as possible. Enter a number.</div>
+
+             <label for="criticalEventCapture_logItems">Log Items:</label>
+            <input type="text" id="criticalEventCapture_logItems" name="criticalEventCapture_logItems" value="{{ (config.criticalEventCapture.logItems | default([])) | join(', ') }}">
+            <div class="explanation">During critical events we want all data points saved</div>
+
+            <label for="criticalEventCapture_preEventBufferSizeSeconds">Pre-Event Buffer (Seconds):</label>
+            <input type="text" id="criticalEventCapture_preEventBufferSizeSeconds" name="criticalEventCapture_preEventBufferSizeSeconds" value="{{ config.criticalEventCapture.preEventBufferSizeSeconds | default(30) }}">
+            <div class="explanation">Time of high frequency data from *before* the event trigger. Enter a number.</div>
+
+            <label for="criticalEventCapture_postEventDurationSeconds">Post-Event Duration (Seconds):</label>
+            <input type="text" id="criticalEventCapture_postEventDurationSeconds" name="criticalEventCapture_postEventDurationSeconds" value="{{ config.criticalEventCapture.postEventDurationSeconds | default(60) }}">
+            <div class="explanation">Time of high frequency data from *after* the event trigger. Enter a number.</div>
+
+            <label for="criticalEventCapture_retentionPolicy">Retention Policy:</label>
+            <input type="text" id="criticalEventCapture_retentionPolicy" name="criticalEventCapture_retentionPolicy" value="{{ config.criticalEventCapture.retentionPolicy | default('KEEP_LAST_N_EVENTS') }}">
+            <div class="explanation">How to manage stored critical event logs. Options: KEEP_LAST_N_EVENTS, KEEP_TOTAL_SIZE_MB</div>
+
+            <label for="criticalEventCapture_retentionValue">Retention Value:</label>
+            <input type="text" id="criticalEventCapture_retentionValue" name="criticalEventCapture_retentionValue" value="{{ config.criticalEventCapture.retentionValue | default(10) }}">
+            <div class="explanation">The number 'N' for KEEP_LAST_N_EVENTS, or the size limit in MB for KEEP_TOTAL_SIZE_MB. Enter a number.</div>
+
+            <label for="criticalEventCapture_uploadOnEvent">Upload on Event:</label>
+            <input type="text" id="criticalEventCapture_uploadOnEvent" name="criticalEventCapture_uploadOnEvent" value="{{ config.criticalEventCapture.uploadOnEvent | default(true) }}">
+            <div class="explanation">Upload the critical event log immediately when detected. Options: true, false</div>
+        </div>
+
+        <!-- ==================== Critical Event Triggers (Textarea Input) ==================== -->
+        <div class="config-section">
+            <h2>Critical Event Triggers</h2>
+            <label for="criticalEventTriggers_definitions_json">Trigger Definitions (JSON Array):</label>
+            <textarea id="criticalEventTriggers_definitions_json" name="criticalEventTriggers_definitions_json">{{ triggers_json | safe }}</textarea>
+            <div class="explanation">
+                Enter the trigger format following this template exactly as a list. (embedded in []) 
+                <pre>[
+    {
+    "triggerId": "TEMP_HIGH", // any id you want
+    "logItemName": "MeltTemp",
+    "condition": "GREATER_THAN", // LESS_THAN, GREATER_THAN, EQUAL_TO
+    "value": 250.0
+    }
+]</pre>
+            </div>
+        </div>
+
+        <!-- ==================== Network Management ==================== -->
+        <div class="config-section">
+            <h2>Network Management</h2>
+            <label for="networkManagement_uploadEnabled">Upload Enabled:</label>
+            <input type="text" id="networkManagement_uploadEnabled" name="networkManagement_uploadEnabled" value="{{ config.networkManagement.uploadEnabled | default(true) }}">
+            <div class="explanation">Options: true, false</div>
+
+            <label for="networkManagement_uploadMethod">Persistent Upload Method:</label>
+            <input type="text" id="networkManagement_uploadMethod" name="networkManagement_uploadMethod" value="{{ config.networkManagement.uploadMethod | default('PERIODIC') }}">
+            <div class="explanation">When to upload persistent logs. Options: PERIODIC, STORAGE_DEFINED</div>
+
+            <label for="networkManagement_uploadAmt">Upload Amount / Interval:</label>
+            <input type="text" id="networkManagement_uploadAmt" name="networkManagement_uploadAmt" value="{{ config.networkManagement.uploadAmt | default(3600) }}">
+            <div class="explanation">If PERIODIC, this is seconds between uploads. If STORAGE_DEFINED, this is persistent log size in MB to trigger upload. Enter a number.</div>
+
+            <label for="networkManagement_maxUploadRateKBps">Max Upload Rate (KB/s):</label>
+            <input type="text" id="networkManagement_maxUploadRateKBps" name="networkManagement_maxUploadRateKBps" value="{{ config.networkManagement.maxUploadRateKBps | default(100) }}">
+            <div class="explanation">Max network bandwidth to use for uploads. Enter a number.</div>
+
+            <label for="networkManagement_networkInterface">Network Interface:</label>
+            <input type="text" id="networkManagement_networkInterface" name="networkManagement_networkInterface" value="{{ config.networkManagement.networkInterface | default('eth0') }}">
+            <div class="explanation">Network interface to use for uploads.</div>
+
+            <h3>Upload Destination</h3>
+            <label for="uploadDestination_protocol">Protocol:</label>
+            <input type="text" id="uploadDestination_protocol" name="uploadDestination_protocol" value="{{ config.networkManagement.uploadDestination.protocol | default('HTTPS') }}">
+            <div class="explanation">will prob hard code as https</div>
+
+            <label for="uploadDestination_serverAddress">Server Address:</label>
+            <input type="text" id="uploadDestination_serverAddress" name="uploadDestination_serverAddress" value="{{ config.networkManagement.uploadDestination.serverAddress | default('your-endpoint.placeholder.com') }}">
+            <div class="explanation">upload server</div>
+
+            <label for="uploadDestination_port">Port:</label>
+            <input type="text" id="uploadDestination_port" name="uploadDestination_port" value="{{ config.networkManagement.uploadDestination.port | default(443) }}">
+            <div class="explanation">Enter a number.</div>
+
+            <label for="uploadDestination_endpointPath">Endpoint Path:</label>
+            <input type="text" id="uploadDestination_endpointPath" name="uploadDestination_endpointPath" value="{{ config.networkManagement.uploadDestination.endpointPath | default('/api/') }}">
+            <div class="explanation">URL path</div>
+
+            <label for="uploadDestination_cloudProviderHint">Cloud Provider Hint:</label>
+            <input type="text" id="uploadDestination_cloudProviderHint" name="uploadDestination_cloudProviderHint" value="{{ config.networkManagement.uploadDestination.cloudProviderHint | default('AWS') }}">
+            <div class="explanation">will prob hard code one option</div>
+
+            <h4>Authentication</h4>
+            <label for="authentication_type">Auth Type:</label>
+            <input type="text" id="authentication_type" name="authentication_type" value="{{ config.networkManagement.uploadDestination.authentication.type | default('Bearer') }}">
+            <div class="explanation">atuh</div>
+
+            <label for="authentication_token">Token / Key:</label>
+            <input type="text" id="authentication_token" name="authentication_token" value="{{ config.networkManagement.uploadDestination.authentication.token | default('YOUR_SECURE_TOKEN_HERE') }}">
+            <div class="explanation">probably just aws token</div>
+        </div>
+
+        <button type="submit">Save Configuration</button>
+    </form>
+{% endblock %}
