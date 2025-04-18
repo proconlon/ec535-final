@@ -1,6 +1,5 @@
 #include <open62541/client.h>
 #include <open62541/client_config_default.h>
-#include <open62541/client_highlevel.h> 
 #include <stdlib.h>
 #include <stdio.h>
 #include <signal.h>
@@ -14,7 +13,7 @@ void readAndPrint(UA_Client *client, const char *name)
     UA_Variant_init(&value);
 
     char nodeIdStr[256];
-    snprintf(nodeIdStr, sizeof(nodeIdStr), "ns=1;s=%s", name);
+    snprintf(nodeIdStr, sizeof(nodeIdStr), "ns=2;s=%s", name);
     UA_NodeId nodeId = UA_NODEID_STRING_ALLOC(2, name);
     UA_StatusCode status = UA_Client_readValueAttribute(client, nodeId, &value);
 
@@ -31,13 +30,20 @@ void readAndPrint(UA_Client *client, const char *name)
     UA_NodeId_clear(&nodeId);
 }
 
-int main() 
+int main(int argc, char *argv[]) 
 {
-
+    if (argc < 2) {
+        printf("Pass the ip addr as a parameter\nUsage: %s <server-ip>\n", argv[0]);
+        return 1;
+    }
     UA_Client *client = UA_Client_new();
     UA_ClientConfig_setDefault(UA_Client_getConfig(client));
 
-    UA_StatusCode status = UA_Client_connect(client, "opc.tcp://192.168.6.1:4840/freeopcua/server/");
+
+    char endpointUrl[256];
+    snprintf(endpointUrl, sizeof(endpointUrl), "opc.tcp://%s:4840/freeopcua/server/", argv[1]);
+    //UA_StatusCode status = UA_Client_connect(client, "opc.tcp://localhost:4840/freeopcua/server/");
+    UA_StatusCode status = UA_Client_connect(client, endpointUrl);
     if(status != UA_STATUSCODE_GOOD) 
     {
         UA_Client_delete(client);
