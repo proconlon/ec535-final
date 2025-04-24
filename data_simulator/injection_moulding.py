@@ -9,10 +9,6 @@ FSM stages
 4. Cooling: Ramp melt_temp down until it drops to 50
 5. Waiting (Idle): Wait 30 seconds (fixed)
 
-Catastrophic events:
-- If any sensor (melt_temp, injection_pressure, vibration_amplitude, vibration_frequency) goes outside its defined range (+-50%), a catastrophic event is triggered
-- The sim pauses for 30 seconds (representing a machine reset/part replacement) and then restarts from PreInjection
-
 We simulate 6 data points per reading:
   - melt_temp
   - injection_pressure
@@ -22,7 +18,6 @@ We simulate 6 data points per reading:
   - timestamp
 
 Some sensor data ramps between states, some oscillate, and some remain constant.
-Added a rare exponential anomaly is injected to simulate failure and trigger catastrophic events
 - runs at 100Hz
 - may want to add many more random data points but these 6 are the core.
 """
@@ -96,6 +91,16 @@ STAGE_DURATIONS = {
     "Waiting": 30 # exactly
 }
 
+# ML/predictive maintenance model info
+machinePartFailureImminent = False
+cycles_since_imminent = 0
+cycles_to_failure = 0
+CYCLES_TO_FAILURE_MIN = 2
+CYCLES_TO_FAILURE_MAX = 8
+IMMINENT_PROB_PER_CYCLE = 0.2 # 20% chance at start of each cycle
+
+DRIFT_PERCENT = 0.15 # 15% drift in vibration amplitude if machine part failure is imminent
+
 def simulate_ramped_sensor_value(value_range, current_time, stage_start, base_duration, ramp_direction, anomaly=False):
     """
     - base_duration: the typical duration of this state, randomized with +-20% of base
@@ -145,26 +150,6 @@ def simulate_periodic_sensor_value(value_range, current_time, stage_start, perio
     noise = random.gauss(0, abs(high - low) * 0.05)
     return base_value + noise
 
-def check_catastrophic_failure(reading):
-    """
-    Check if any sensor is outside its expected range +-50% tolerance
-    """
-    sensors = ["melt_temp", "injection_pressure", "vibration_amplitude", "vibration_frequency"]
-    stage = reading["stage"]
-    for sensor in sensors:
-        value = reading[sensor]
-        low, high = SENSOR_RANGES[stage][sensor]
-        tolerance = 0.50 * (high - low) # tolerance is 50% of the range
-        if value < low - tolerance or value > high + tolerance:
-            print(f"Catastrophic trigger: {sensor} = {value:.2f} (expected between {low} and {high}) in stage {stage}")
-            return True
-    return False
-
-def catastrophic_event_procedure():
-    print("\n=== Catastrophic event detected! ===")
-    print("Machine is pausing for 30 seconds for reset/part replacement...\n")
-    time.sleep(30)
-
 def run_preinjection():
     """
     - Ramp melt_temp from 50 to 250 (noisy and variable)
@@ -172,9 +157,9 @@ def run_preinjection():
     - Other sensors run as constant/noisy
     - 10% chance an anomaly is applied to vibration_amplitude
     """
+    global machinePartFailureImminent
     state = "PreInjection"
     base_duration = STAGE_DURATIONS[state]
-    readings = []
     stage_start = time.time()
     anomaly_vib = (random.random() < 0.1)
     while True:
@@ -184,6 +169,9 @@ def run_preinjection():
         # other sensors are constant
         injection_pressure = simulate_ramped_sensor_value(SENSOR_RANGES[state]["injection_pressure"], current_time, stage_start, base_duration, "constant")
         vibration_amplitude = simulate_ramped_sensor_value(SENSOR_RANGES[state]["vibration_amplitude"], current_time, stage_start, base_duration, "constant", anomaly=anomaly_vib)
+        if machinePartFailureImminent:
+            drift = 1 + DRIFT_PERCENT * ((current_time - stage_start) / base_duration)
+            vibration_amplitude *= drift
         vibration_frequency = simulate_periodic_sensor_value(SENSOR_RANGES[state]["vibration_frequency"], current_time, stage_start, period=2.0)
         reading = {
             "timestamp": current_time,
@@ -200,17 +188,12 @@ def run_preinjection():
         vibration_frequency_var.set_value(vibration_frequency)
         stage_var.set_value(state)
         timestamp_var.set_value(current_time)
-        readings.append(reading)
-        if check_catastrophic_failure(reading):
-            catastrophic_event_procedure()
-            return None
         # transition when melt_temp reaches or exceeds 250
         if melt_temp >= 250:
             print(f"Transitioning from {state} after {current_time - stage_start:.2f} s (melt_temp={melt_temp:.2f}°C).")
             break
         time.sleep(0.01)  # 100Hz
     # print(f"Exiting {state} state.")
-    return readings
 
 def run_injection():
     """
@@ -219,9 +202,9 @@ def run_injection():
     - other sensors behave constant/oscillatory
     - 10% chance an anomaly is applied to injection_pressure
     """
+    global machinePartFailureImminent
     state = "Injection"
     base_duration = STAGE_DURATIONS[state]
-    readings = []
     stage_start = time.time()
     anomaly_inj = (random.random() < 0.1)
     while True:
@@ -230,6 +213,9 @@ def run_injection():
         # ramp injection_pressure upward
         injection_pressure = simulate_ramped_sensor_value(SENSOR_RANGES[state]["injection_pressure"], current_time, stage_start, base_duration, "up", anomaly=anomaly_inj)
         vibration_amplitude = simulate_ramped_sensor_value(SENSOR_RANGES[state]["vibration_amplitude"], current_time, stage_start, base_duration, "constant")
+        if machinePartFailureImminent:
+            drift = 1 + DRIFT_PERCENT * ((current_time - stage_start) / base_duration)
+            vibration_amplitude *= drift
         vibration_frequency = simulate_periodic_sensor_value(SENSOR_RANGES[state]["vibration_frequency"], current_time, stage_start, period=2.0)
         reading = {
             "timestamp": current_time,
@@ -245,16 +231,11 @@ def run_injection():
         vibration_frequency_var.set_value(vibration_frequency)
         stage_var.set_value(state)
         timestamp_var.set_value(current_time)
-        readings.append(reading)
-        if check_catastrophic_failure(reading):
-            catastrophic_event_procedure()
-            return None
         if injection_pressure >= 2000:
             print(f"Transitioning from {state} after {current_time - stage_start:.2f} s (injection_pressure={injection_pressure:.2f} psi).")
             break
         time.sleep(0.01)
     # print(f"Exiting {state} state.")
-    return readings
 
 def run_holding():
     """
@@ -262,9 +243,9 @@ def run_holding():
     - Sensor values constant
     - 10% chance an anomaly is applied to vibration_amplitude
     """
+    global machinePartFailureImminent
     state = "Holding"
     duration = STAGE_DURATIONS[state]
-    readings = []
     stage_start = time.time()
     anomaly_hold = (random.random() < 0.1)
     while time.time() - stage_start < duration:
@@ -272,6 +253,9 @@ def run_holding():
         melt_temp = simulate_ramped_sensor_value(SENSOR_RANGES[state]["melt_temp"], current_time, stage_start, duration, "constant")
         injection_pressure = simulate_ramped_sensor_value(SENSOR_RANGES[state]["injection_pressure"], current_time, stage_start, duration, "constant")
         vibration_amplitude = simulate_ramped_sensor_value(SENSOR_RANGES[state]["vibration_amplitude"], current_time, stage_start, duration, "constant", anomaly=anomaly_hold)
+        if machinePartFailureImminent:
+            drift = 1 + DRIFT_PERCENT * ((current_time - stage_start) / duration)
+            vibration_amplitude *= drift
         vibration_frequency = simulate_periodic_sensor_value(SENSOR_RANGES[state]["vibration_frequency"], current_time, stage_start, period=2.0)
         reading = {
             "timestamp": current_time,
@@ -287,13 +271,8 @@ def run_holding():
         vibration_frequency_var.set_value(vibration_frequency)
         stage_var.set_value(state)
         timestamp_var.set_value(current_time)
-        readings.append(reading)
-        if check_catastrophic_failure(reading):
-            catastrophic_event_procedure()
-            return None
         time.sleep(0.01)
     print(f"Exiting {state} state after {time.time() - stage_start:.2f} s.")
-    return readings
 
 def run_cooling():
     """
@@ -301,9 +280,9 @@ def run_cooling():
     - transition when melt_temp <= 50
     - 10% chance an anomaly is applied to melt_temp
     """
+    global machinePartFailureImminent
     state = "Cooling"
     base_duration = STAGE_DURATIONS[state]
-    readings = []
     stage_start = time.time()
     anomaly_cool = (random.random() < 0.1)
     while True:
@@ -311,6 +290,9 @@ def run_cooling():
         melt_temp = simulate_ramped_sensor_value(SENSOR_RANGES[state]["melt_temp"], current_time, stage_start, base_duration, "down", anomaly=anomaly_cool)
         injection_pressure = simulate_ramped_sensor_value(SENSOR_RANGES[state]["injection_pressure"], current_time, stage_start, base_duration, "constant")
         vibration_amplitude = simulate_ramped_sensor_value(SENSOR_RANGES[state]["vibration_amplitude"], current_time, stage_start, base_duration, "constant")
+        if machinePartFailureImminent:
+            drift = 1 + DRIFT_PERCENT * ((current_time - stage_start) / base_duration)
+            vibration_amplitude *= drift
         vibration_frequency = simulate_periodic_sensor_value(SENSOR_RANGES[state]["vibration_frequency"], current_time, stage_start, period=2.0)
         reading = {
             "timestamp": current_time,
@@ -326,31 +308,29 @@ def run_cooling():
         vibration_frequency_var.set_value(vibration_frequency)
         stage_var.set_value(state)
         timestamp_var.set_value(current_time)
-        readings.append(reading)
-        if check_catastrophic_failure(reading):
-            catastrophic_event_procedure()
-            return None
         if melt_temp <= 50:
             print(f"Transitioning from {state} after {current_time - stage_start:.2f} s (melt_temp={melt_temp:.2f}°C).")
             break
         time.sleep(0.01)
     # print(f"Exiting {state} state.")
-    return readings
 
 def run_waiting():
     """
     - fixed to 30 seconds
     - sensor values constant
     """
+    global machinePartFailureImminent
     state = "Waiting"
     duration = STAGE_DURATIONS[state]
-    readings = []
     stage_start = time.time()
     while time.time() - stage_start < duration:
         current_time = time.time()
         melt_temp = simulate_ramped_sensor_value(SENSOR_RANGES[state]["melt_temp"], current_time, stage_start, duration, "constant")
         injection_pressure = simulate_ramped_sensor_value(SENSOR_RANGES[state]["injection_pressure"], current_time, stage_start, duration, "constant")
         vibration_amplitude = simulate_ramped_sensor_value(SENSOR_RANGES[state]["vibration_amplitude"], current_time, stage_start, duration, "constant")
+        if machinePartFailureImminent:
+            drift = 1 + DRIFT_PERCENT * ((current_time - stage_start) / duration)
+            vibration_amplitude *= drift
         vibration_frequency = simulate_periodic_sensor_value(SENSOR_RANGES[state]["vibration_frequency"], current_time, stage_start, period=2.0)
         reading = {
             "timestamp": current_time,
@@ -366,38 +346,60 @@ def run_waiting():
         vibration_frequency_var.set_value(vibration_frequency)
         stage_var.set_value(state)
         timestamp_var.set_value(current_time)
-        readings.append(reading)
-        if check_catastrophic_failure(reading):
-            catastrophic_event_procedure()
-            return None
         time.sleep(0.01)
     print(f"Exiting {state} state after {time.time() - stage_start:.2f} s.")
-    return readings
 
 def run_cycle():
     """
     PreInjection -> Injection -> Holding -> Cooling -> Waiting.
-    - if a catastrophic event happens, restart from PreInjection
     """
     cycle_data = []
-    for state_fn in (run_preinjection, run_injection, run_holding, run_cooling, run_waiting):
-        state_data = state_fn()
-        if state_data is None:
-            # catastrophic event occurred
-            return None
-        cycle_data.extend(state_data)
+    for fn in (run_preinjection, run_injection, run_holding, run_cooling, run_waiting):
+        fn() # run each cycle
     return cycle_data
 
 def main():
+    global machinePartFailureImminent, cycles_since_imminent, cycles_to_failure
+
     try:
         while True:
             print("=== Starting new cycle ===")
+
+            # At beginning of each cycle, we check if a failure is imminent
+            if not machinePartFailureImminent and random.random() < IMMINENT_PROB_PER_CYCLE:
+                machinePartFailureImminent = True
+                cycles_since_imminent = 0
+                cycles_to_failure = 0
+                # choose a random failure span
+                cycles_to_failure = random.randint(CYCLES_TO_FAILURE_MIN, CYCLES_TO_FAILURE_MAX)
+                print(f"Part failure imminent — in {cycles_to_failure} cycles. this data not provided to ML model.")
+
+            # run a full cycle
             cycle_data = run_cycle()
-            if cycle_data is not None:
-                print(f"Cycle completed. Total data points: {len(cycle_data)}")
-            else:
-                print("Cycle aborted due to catastrophic event. Restarting simulation...")
-            print("------------------------------------------------")
+
+            # label and plan to trigger actual failure
+            if machinePartFailureImminent:
+                cycles_since_imminent += 1 # track since imminent flag went high
+                
+                # trigger failure after a certain number of cycles (defined randomly in a range)
+                if cycles_since_imminent >= cycles_to_failure:
+                    print("Part has failed—stopping for replacement")
+
+                    # the stage is PartReplacement since the part is broken
+                    # this is used by the ML model to predict this stage happening
+                    stage_var.set_value("PartReplacement")
+                    melt_temp_var.set_value(0.0)
+                    injection_pressure_var.set_value(0.0)
+                    vibration_amplitude_var.set_value(0.0)
+                    vibration_frequency_var.set_value(0.0)
+                    timestamp_var.set_value(time.time())
+                    time.sleep(10)
+                    stage_var.set_value("PreInjection") # set back to restart
+                    machinePartFailureImminent = False
+                    cycles_since_imminent = 0
+                    cycles_to_failure = 0
+
+
     except KeyboardInterrupt:
         print("exiting")
     finally:
