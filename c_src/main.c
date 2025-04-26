@@ -113,11 +113,13 @@ int main(int argc, char **argv) {
             if (!train_fp) {
                 perror("fopen train");
             }
+            printf("Started train capture, writing to train folder.\n");
         } else if (!cap && prevCap) { // stop capture
             if (train_fp) {
                 fclose(train_fp);
             }
             train_fp = NULL;
+            printf("Stopped train capture\n");
         }
         prevCap = cap; // update previous capture state
 
@@ -167,7 +169,6 @@ int main(int argc, char **argv) {
 
     // cleanup
     fclose(log_fp);
-    // if (lf) close(_LFS64_STDIO);
     if (train_fp) fclose(train_fp);
     opcua_disconnect(client);
     return 0;
