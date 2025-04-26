@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <time.h>
+#include <errno.h>
+#include <fcntl.h>
 
 // config.txt stores each value on a new line
 typedef struct {
@@ -65,6 +67,12 @@ int main(int argc, char **argv) {
     system("mkdir -p logs train");
 
 
+    // set up for watchability
+    // use watch -n0.2 cat live_data
+    FILE *lf = fopen("live_data", "w");
+    if (lf) fclose(lf);
+
+
     // set up opcua client
     char url[256];
     snprintf(url, sizeof(url), "opc.tcp://%s:4840/freeopcua/server/", argv[1]);
@@ -120,6 +128,17 @@ int main(int argc, char **argv) {
 
         }
 
+        // DATA READ SUCCESS HERE
+        
+        // live data write for watch current data
+        FILE *lf = fopen("live_data", "w");
+        if (lf) { // TODO: make formatting better and not just clone of csv
+            fprintf(lf, "%llu,%.2f,%.2f,%.2f,%.2f,%s,%d\n",
+                row.ts_us, row.melt_temp,
+                row.inj_press, row.vib_amp,
+                row.vib_freq, row.stage, row.failure_label);
+            fclose(lf);
+        }
 
         // Low-rate logging always always goes to log_fp
         if (tick % decimateN == 0) {
@@ -148,6 +167,7 @@ int main(int argc, char **argv) {
 
     // cleanup
     fclose(log_fp);
+    // if (lf) close(_LFS64_STDIO);
     if (train_fp) fclose(train_fp);
     opcua_disconnect(client);
     return 0;
