@@ -7,7 +7,7 @@ FSM stages
 2. Injection: Ramp injection_pressure from 500 to 2000 psi
 3. Holding (Packing): Wait 3 seconds (fixed)
 4. Cooling: Ramp melt_temp down until it drops to 50
-5. Waiting (Idle): Wait 30 seconds (fixed)
+5. Waiting (Idle): Wait 5 seconds (fixed)
 
 We simulate 6 data points per reading:
   - melt_temp
@@ -88,7 +88,7 @@ STAGE_DURATIONS = {
     "Injection": 2,
     "Holding": 3, # exactly
     "Cooling": 5,
-    "Waiting": 30 # exactly
+    "Waiting": 5 # exactly
 }
 
 # ML/predictive maintenance model info
@@ -283,17 +283,23 @@ def run_cooling():
     global machinePartFailureImminent
     state = "Cooling"
     base_duration = STAGE_DURATIONS[state]
+    effective_duration = random.uniform(0.8 * base_duration, 1.2 * base_duration) # some variation for fun
+
+    orig_uniform = random.uniform
+    random.uniform = lambda a, b: effective_duration # stupid fix to resolve sim getting stuck in cooling state
+
     stage_start = time.time()
     anomaly_cool = (random.random() < 0.1)
     while True:
         current_time = time.time()
-        melt_temp = simulate_ramped_sensor_value(SENSOR_RANGES[state]["melt_temp"], current_time, stage_start, base_duration, "down", anomaly=anomaly_cool)
-        injection_pressure = simulate_ramped_sensor_value(SENSOR_RANGES[state]["injection_pressure"], current_time, stage_start, base_duration, "constant")
-        vibration_amplitude = simulate_ramped_sensor_value(SENSOR_RANGES[state]["vibration_amplitude"], current_time, stage_start, base_duration, "constant")
+        # elapsed = current_time - stage_start
+        melt_temp = simulate_ramped_sensor_value(SENSOR_RANGES[state]["melt_temp"], current_time, stage_start, effective_duration, "down")
+        injection_pressure = simulate_ramped_sensor_value(SENSOR_RANGES[state]["injection_pressure"],current_time, stage_start, effective_duration,"constant")
+        vibration_amplitude = simulate_ramped_sensor_value(SENSOR_RANGES[state]["vibration_amplitude"],current_time, stage_start, effective_duration, "constant")
         if machinePartFailureImminent:
-            drift = 1 + DRIFT_PERCENT * ((current_time - stage_start) / base_duration)
+            drift = 1 + DRIFT_PERCENT * ((current_time - stage_start) / effective_duration)
             vibration_amplitude *= drift
-        vibration_frequency = simulate_periodic_sensor_value(SENSOR_RANGES[state]["vibration_frequency"], current_time, stage_start, period=2.0)
+        vibration_frequency = simulate_periodic_sensor_value(SENSOR_RANGES[state]["vibration_frequency"],current_time, stage_start, period=2.0)
         reading = {
             "timestamp": current_time,
             "stage": state,
@@ -309,9 +315,10 @@ def run_cooling():
         stage_var.set_value(state)
         timestamp_var.set_value(current_time)
         if melt_temp <= 50:
-            print(f"Transitioning from {state} after {current_time - stage_start:.2f} s (melt_temp={melt_temp:.2f}°C).")
+            print(f"Transitioning from {state} after {effective_duration:.2f} s (melt_temp={melt_temp:.2f}°C).")
             break
         time.sleep(0.01)
+    random.uniform = orig_uniform
     # print(f"Exiting {state} state.")
 
 def run_waiting():
