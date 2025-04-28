@@ -67,4 +67,11 @@ Since each line in the csv represents one data point, we will average the size o
 
 # References
 
+## Predictive Maintenance
+
+- [Deloitte - Asset Optimization: Predictive Maintenance](https://www2.deloitte.com/us/en/pages/operations/articles/predictive-maintenance-and-the-smart-factory.html)
+- [AWS - What is Predictive Maintenance?](https://aws.amazon.com/what-is/predictive-maintenance/)
+
+## Project
+
 - [Logging on Embedded Devices](https://interrupt.memfault.com/blog/device-logging)
