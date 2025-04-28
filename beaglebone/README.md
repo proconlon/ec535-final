@@ -1,8 +1,28 @@
-# BeagleBone details
+These are the details for running the program on the beaglebone with all the tools we added.
+
+
+# Config BeagleBone
+
+These 4 files must be placed in a dir on BeagleBone to run all aspects of the program.
+
+- `bbb_logger_arm` - ran as `./bbb_logger_arm <ip of opcua server>`
+- `config.txt`
+- `capture` (0 or 1)
+- `monitor.py`
+- `upload.py`
+
+Running the bbb logger creates two folders: `logs` and `train` for LF and HF data respectively. The logger also creates a `live_data` file that is constantly updated with each read for live data. You can monitor in a basic way with:
+```sh
+watch -n0.2 cat live_data
+```
+
+# Setup BeagleBone
 
 - setup details like how to get dual ethernet, base image, running the program, etc.
 
 - [BeagleBone image used](https://www.beagleboard.org/distros/am335x-11-7-2023-09-02-4gb-microsd-iot)
+
+- set up a cron job for the `upload.py` that will upload and delete bufferred data.
 
 
 # Cross compiling
@@ -43,5 +63,3 @@ ssh USER@BEAGLEBONE_IP
 
 ./bbb_logger_arm <ip of opcua server> 
 ```
-
-watch -n0.2 cat live_data

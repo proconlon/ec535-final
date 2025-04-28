@@ -6,66 +6,63 @@ conlon@bu.edu
 Animisha Sharanappa \
 anics@bu.edu
 
-# cross Compile instructions
+# Overview
 
-ensure you have all of these packages installed:
-```sh
-arm-linux-gnueabihf-binutils \
-arm-linux-gnueabihf-gcc \
-arm-linux-gnueabihf-gcc-c++ \
-arm-linux-gnueabihf-glibc \
-cmake \
-make \
-gcc
+
+# Config and Metrics
+
+This project tracks a number of metrics for data and storage saving reasons. This is important as sometimes factory floor would have the beaglebone device segmented from the local network and on a Sim card, so it can't send unlimited data to the cloud.
+
+Thus it should log at a much high frequency for ML training and log at a lower frequency for persistent cloud storage. This is also useful as large amounts of persisted data being stored on some cloud would be expensive, wasteful, and pointless to store.
+
+- Logging at a high frequency is important for ML/Predictive Maintenance
+- Logging at a low frequency is used for persistent cloud storage
+
+The project includes a number of ways to live calculate and estime data, network, and storage usage and predict based on current data usage.
+
+## Config file details
+
+This is what you define in the `config.txt` that is placed alongside the `bbb_logger` binary.
+```c
+int hiRateHz;       // polling rate (Hz) (HF, for ML training)
+int loRateHz;       // logging rate (Hz) (LF, for cloud storage)
+int maxFileKB;      // max log file size before rotation
 ```
 
-cd into collector/ and clone the open62541 repo (for OPCUA)
+Since we don't want to continously store the Hi rate data, we introduced a file called `capture` that if set to `1` will store HF data at the frequency defined. If set to `0` it will only store LF data. 
+
 ```sh
-git clone https://github.com/open62541/open62541.git
-cd open62541
+echo 1 > capture
 ```
 
-- ensure toolchain-armhf.cmake is present in collector folder (already part of repo), just ensure it has correct paths to the folder.
-
-create a build directory for beaglebone: armhf and  then configure cmake
-- run from the collector folder
+You can also live watch the currently read data and system static with the file `live_data`
 ```sh
-mkdir open62541_build_armhf
-cd open62541_build_armhf
-
-INSTALL_PATH="/home/james/open62541_armhf_install"
-cmake ../open62541 \
-    -DCMAKE_TOOLCHAIN_FILE=../toolchain-armhf.cmake \
-    -DCMAKE_INSTALL_PREFIX=${INSTALL_PATH} \
-    -DBUILD_SHARED_LIBS=OFF \
-    -DUA_NAMESPACE_ZERO=FULL \
-    -DCMAKE_BUILD_TYPE=MinSizeRel
-
-
-make -j$(nproc)
-make install
-
-cd ..
+watch -n0.2 cat live_data
 ```
 
-Now the open62541 library is built and installed in the INSTALL_PATH.
+## Metrics
 
-If you are building open62541 for a different arch, create new toolchain for it
+Since each line in the csv represents one data point, we will average the size of a line and use for a number of calculations for storage.
 
-next, we statically compile the collector itself. note the install path isnt in the project dir but in my home folder. put it wherever.
-```sh
-INSTALL_PATH="/home/james/open62541_armhf_install"
+- We use a cron job on a python script to upload stored data to cloud. Since we locally buffer data, the timing of the cron job doesn't really matter. (We set to 5 minutes). What does matter is the frequency of the LF data we store.
+- We implemented a tool that estimates the daily/monthly network usage based on an inputted LF Hz rate and a sample of the csv data. 
+- We do the same for HF data for ML. The intent is to train locally to save cloud costs as there would be a lot more data.
+- Calculates low rate bytes/sec and high rate bytes/sec. 
+- Calculates time to capacity estimates intil we fill the maxFileKB and an amount of storage on the SD card itself. Since data sent to the cloud is deleted from local, we just need this to ensure we don't fill the SD card and we don't generate more data than the latency of the upload.
+- Thus we also calculate throughputs and such using a user estimated upload speed.
+- Lots of data volume information.
+- Also do what if calculations for the following:
+    - If I want to capture HF data for X hours, how much data will it generate, and how long will it take to upload?
+    - If you have X MB free on SD, how many hours of LF/HF data can you store?
 
-arm-linux-gnueabihf-gcc \
-    -march=armv7-a -mtune=cortex-a8 -mfpu=neon -mfloat-abi=hard \
-    -I${INSTALL_PATH}/include \
-    -L${INSTALL_PATH}/lib \
-    -o data_collector_arm_static data_collector.c \
-    -static \
-    -lopen62541 \
-    -lm -lpthread -lrt
+# Predictive Maintenance
 
-```
+- Implements a locally run ML model on the HF data to predict machine simulated failures.
+- It is key that it is locally run because we established that this would be too much data to send to cloud and relatively pointless to send 100Hz+ data to cloud. 
+- So it is locally run and alerts the machine operator via email when a failure is predicted.
+- The `capture` flag is for training the model, so that data is sent to cloud for training a model.
+- Plan to implement alerts for low storage?
+
 
 
 # References
