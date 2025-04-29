@@ -37,9 +37,19 @@ def upload_and_cleanup(directory):
             print(f"Uploading {filepath} -> s3://{BUCKET_NAME}/{key}")
             s3.upload_file(filepath, BUCKET_NAME, key)
             print("  Success")
-            os.remove(filepath)
         except (BotoCoreError, ClientError) as e:
-            print(f"  Failed: {e}")
+            print(f"  Upload failed: {e}")
+            continue
+
+        # safer delete
+        if os.path.exists(filepath):
+            try:
+                os.remove(filepath)
+                print(f"  Deleted {filepath}")
+            except OSError as e:
+                print(f"  Could not delete {filepath}: {e}")
+        else:
+            print(f"  Already gone: {filepath}")
 
 if __name__ == "__main__":
     for dir_name in ('logs', 'train'):
