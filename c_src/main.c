@@ -152,15 +152,21 @@ int main(int argc, char **argv) {
         // live data write for watch current data
         FILE *lf = fopen("live_data", "w");
         if (lf) { // TODO: make formatting better and not just clone of csv
+
+            fprintf(lf,"raw csv most recent data:\n");
             fprintf(lf, "%llu,%.2f,%.2f,%.2f,%.2f,%s,%d\n",
                 row.ts_us, row.melt_temp,
                 row.inj_press, row.vib_amp,
                 row.vib_freq, row.stage, row.failure_label);
 
+            fprintf(lf, "Timestamp: %llu \tTemp=%.1f°C  \nPressure=%.1fpsi\tVib=%.2fg@%.1fHz\nStage=%s\n",
+                row.ts_us, row.melt_temp, row.inj_press,
+                row.vib_amp, row.vib_freq, row.stage);
+
             fprintf(lf, "\nConfig: \n  HiHz\t\t%d\n  LoHz\t\t%d\n  maxLogFileKB\t%d\n  maxLogDirKB\t%d\n  maxTrainDirKB\t%d\n  CaptureSec\t%d (unused)\n  CaptureEnable\t%d (unused)\n", 
                 cfg.hiRateHz, cfg.loRateHz, cfg.maxLogFileKB, cfg.maxLogDirKB, 
                 cfg.maxTrainDirKB, cfg.captureSeconds, cfg.captureEnabled);
-            fprintf(lf, "Capture file: %d\n", prevCap);
+            fprintf(lf, "Capture mode: %s\n", cap ? "Training Mode (HF) and LF logging" : "Logging only (No HF data)");
 
             // calculate dir sizes
             int totalLogKB = dir_usage_kb("logs");
@@ -176,7 +182,24 @@ int main(int argc, char **argv) {
                 cfg.hiRateHz * sizeof(LogRow),
                 (float)(cfg.hiRateHz * sizeof(LogRow)) / 1024.0);
 
-            fprintf(lf, "Storage full in ...\n");
+            // not easy to calculate and not that useful
+            // would have to get the size of the most recent file in each dir
+            // fprintf(lf,"File rotation will take place in:\n");
+            // fprintf(lf, "  Log dir: %d seconds (most recent is X% full)\n", );
+            // fprintf(lf, "  Train dir: %d seconds (most recent is x% full)\n", );
+
+
+            fprintf(lf, "At current rates max cap will be full in:\n");
+            fprintf(lf, "  Log dir: %d seconds\n", (cfg.maxLogDirKB - totalLogKB) * 1024 / (cfg.loRateHz * sizeof(LogRow)));                
+            fprintf(lf, "  Train dir: %d seconds\n", (cfg.maxTrainDirKB - totalTrainKB) * 1024 / (cfg.hiRateHz * sizeof(LogRow)));
+
+            fprintf(lf,"The max time for the cron upload script should be: %d seconds\n", (cfg.maxLogDirKB) * 1024 / (cfg.loRateHz * sizeof(LogRow)));
+
+
+            double bucketBytes = 5.0 * 1024 * 1024 * 1024;  // 5 GiB for AWS S3 free
+            double secsFor5GiB = bucketBytes / (sizeof(LogRow) * cfg.loRateHz);
+            fprintf(lf, "In order to fill the AWS S3 bucket (5GB), it will take %f seconds of LF data. (%f hours)\n", secsFor5GiB, secsFor5GiB / 3600.0);
+           
             
             fclose(lf);
         }
