@@ -26,21 +26,48 @@ def send_email_alert(probability):
 
 def get_live_data():
    #TODO: Get the live data, Probably reading off of a CSV file. Do it tomorrow in class
-    return {
-        'temp': 21.4,
-        'pressure': 52.7,
-        'amplitude': 0.31,
-        'frequency': 6.8,
-        'stage': 'Cooling'
-    }
+    try:
+        with open('live_data', 'r') as file: # open the continously updated data file
+            lines = file.readlines()
+            if len(lines) < 2:
+                raise ValueError("not enough lines")
+
+            data_line = lines[1].strip() # 2nd line of file has csv live data
+            values = data_line.split(',') #csv
+
+            return {
+                'timestamp': int(values[0]),
+                'temp': float(values[1]),
+                'pressure': float(values[2]),
+                'amplitude': float(values[3]),
+                'frequency': float(values[4]),
+                'stage': values[5],
+                'failure_label': int(values[6])
+            }
+    except Exception as e:
+        print(f"Error reading live_data: {e}")
+        return None
+
+
+email_last_5 = 0
 
 while True:
     data = get_live_data()
     df = pd.DataFrame([data])
     prob_failure = model.predict_proba(df)[0][1] 
     print(f"Prediction: Failure probability = {prob_failure:.2f}")
-    if prob_failure > 0.50: #Testing
-        send_email_alert(prob_failure)
-        exit() # Just to avoid spam 
+
+    # write to file the current timestamp and the current prob
+    with open('predict_result.txt', 'a') as f:
+        timestamp = time.strftime('%Y-%m-%d %H:%M:%S')
+        f.write(f"{timestamp}, - Current failure probability: {prob_failure:.2f}\n")
+
+
+    if prob_failure > 0.50:
+        current_time = time.time()
+        if current_time - email_last_5 >= 5*60:  # max 1 email per 5 min
+            send_email_alert(prob_failure)
+            email_last_5 = current_time
+        print("Waiting for cooldown before sending next alert...")
 
     time.sleep(1) 
