@@ -1,0 +1,28 @@
+raw csv most recent data:
+1745973055401014,168.23,50.39,0.86,14.62,PreInjection,0
+* No ML predictor running.
+
+Timestamp: 1745973055401014     Temp=168.2°C
+Pressure=50.4psi        Vib=0.86g@14.6Hz
+Stage=PreInjection
+
+Config:
+  HiHz          100
+  LoHz          4
+  maxLogFileKB  15
+  maxLogDirKB   9500
+  maxTrainDirKB 10000
+  CaptureSec    900 (unused)
+  CaptureEnable 0 (unused)
+Capture mode: Training Mode (HF) and LF logging
+Total Log dir usage:   1367KB / 9500KB (14% of cap)
+Total Train dir usage: 2604KB / 10000KB (26% of cap)
+Bytes/KBytes per second LF: 320B/s, 0.31KB/s
+Bytes/KBytes per second HF: 8000B/s, 7.81KB/s
+At current rates max cap will be full in:
+    Log dir: 26235 seconds
+    Train dir: 947 seconds
+In order to fill the AWS S3 bucket (5GB), it will take 16777216.000000 seconds of LF data. (4660.337778 hours)
+   The max time for the cron upload script should be: 30400 seconds to prevent reaching cap
+   Current bufferred files: logs=92, train=2
+   Next upload in: 245 seconds

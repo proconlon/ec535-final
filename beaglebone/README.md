@@ -1,32 +1,38 @@
+# Setting up the BeagleBone
 These are the details for running the program on the beaglebone with all the tools we added.
 
 
-# Config BeagleBone
-
-These 4 files must be placed in a dir on BeagleBone to run all aspects of the program.
+These 6 files must be placed in a dir on BeagleBone to run all aspects of the program.
 
 - `bbb_logger_arm` - ran as `./bbb_logger_arm <ip of opcua server>`
 - `config.txt`
 - `capture` (0 or 1)
-- `monitor.py`
-- `upload.py`
+- `predictive_maintain.py`
+- `upload.py` - with S3 credentials for AWS upload
+- `ip_address` - the IP address of the OPC-UA server
 
 Running the bbb logger creates two folders: `logs` and `train` for LF and HF data respectively. The logger also creates a `live_data` file that is constantly updated with each read for live data. You can monitor in a basic way with:
 ```sh
-watch -n0.2 cat live_data
+watch -n0.1 cat live_data
 ```
 
-# Setup BeagleBone
+## Config
 
-- setup details like how to get dual ethernet, base image, running the program, etc.
+- Use the image and boot into it [am335x-11-7-2023-09-02-4gb-microsd-iot.img.xz](https://www.beagleboard.org/distros/am335x-11-7-2023-09-02-4gb-microsd-iot).  
+- **eth0**: built-in port-- connect to WAN/DHCP for internet access
+- **eth1**: via USB-Ethernet dongle to reach OPC-UA data simulator (running on a laptop)
+- Edit `/etc/dhcpcd.conf` to give **eth1** a static IP and **eth0** with DHCP
+- Create 2 systemd units (specified in `system_setup.md`) to run the logger and the ML model. 
+- Create the cron job for the bufferred upload script.
+- Install and configure tailscale as exit node:
+```sh
+sudo tailscale up \
+  --advertise-exit-node \
+  --advertise-routes=192.168.50.0/24 # subnet that OPC-UA server is on
+```
 
-- [BeagleBone image used](https://www.beagleboard.org/distros/am335x-11-7-2023-09-02-4gb-microsd-iot)
-
-- set up a cron job for the `upload.py` that will upload and delete bufferred data.
-
-
-# Cross compiling
-- The only compiliation dependency is [github.com/open62541/open62541](https://github.com/open62541/open62541.git), which you need to download and build for Arm in order to compile.
+## Cross compiling
+- The main compiliation dependency is [github.com/open62541/open62541](https://github.com/open62541/open62541.git), which you need to download and build for Arm in order to compile.
 - We compile statically so only the final binary needs to be copied and not the open62541 library to the BeagleBone.
 
 ```sh

@@ -174,7 +174,7 @@ int main(int argc, char **argv) {
             }
             
 
-            fprintf(lf, "Timestamp: %llu \tTemp=%.1f°C  \nPressure=%.1fpsi\tVib=%.2fg@%.1fHz\nStage=%s\n",
+            fprintf(lf, "\nTimestamp: %llu \tTemp=%.1f°C  \nPressure=%.1fpsi\tVib=%.2fg@%.1fHz\nStage=%s\n",
                 row.ts_us, row.melt_temp, row.inj_press,
                 row.vib_amp, row.vib_freq, row.stage);
 
@@ -207,16 +207,6 @@ int main(int argc, char **argv) {
             fprintf(lf, "At current rates max cap will be full in:\n");
             fprintf(lf, "  Log dir: %d seconds\n", (cfg.maxLogDirKB - totalLogKB) * 1024 / (cfg.loRateHz * sizeof(LogRow)));                
             fprintf(lf, "  Train dir: %d seconds\n", (cfg.maxTrainDirKB - totalTrainKB) * 1024 / (cfg.hiRateHz * sizeof(LogRow)));
-
-
-
-            // total disk usage (useful for tuning the maxLogFileKB parameter)
-            struct statvfs sv;
-            if (statvfs("/home/debian", &sv) == 0) {
-                unsigned long availKB = (sv.f_bavail * sv.f_frsize) / 1024;
-                unsigned long totalKB = (sv.f_blocks * sv.f_frsize) / 1024;
-                fprintf(lf, "   Disk /home: %luKB/%luKB (%d%% used)\n", availKB, totalKB, (int)(100.0 * (totalKB - availKB) / totalKB));
-            }
 
             double bucketBytes = 5.0 * 1024 * 1024 * 1024;  // 5 GiB for AWS S3 free
             double secsFor5GiB = bucketBytes / (sizeof(LogRow) * cfg.loRateHz);

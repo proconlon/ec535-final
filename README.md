@@ -1,15 +1,20 @@
-# EC535 Final
+# Predictive Maintenance & Data Logger for Industry 2.0
+EC535 Final Project
 
-James Conlon \
-conlon@bu.edu
+## Overview
 
-Animisha Sharanappa \
-anics@bu.edu
+This project turns a BeagleBone Black into an edge-gateway that 
 
-# Overview
+1. Collects machine data from an OPC-UA server (our injection-moulding simulator)  
+2. Logs it at two different rates  
+   - High-frequency (HF) for local ML and training - HF data never leaves the BBB except when capturing data for training purposes, to save cloud costs 
+   - Low-frequency (LF) for long term cloud storage  
+3. Runs a local ML model that predicts failures and emails the operator **before** they occur (Predictive Maintenance)
+4. Buffers and uploads the CSV logs to AWS S3 every five minutes, tolerant of network failures
+5. Exposes everything remotely through Tailscale (so beaglebone can act as exit for factory devices)
+   - Air gaps the factory floor behind the Tailscale exit node and allows remote access to those devices.
 
-
-# Config and Metrics
+## Config and Metrics
 
 This project tracks a number of metrics for data and storage saving reasons. This is important as sometimes factory floor would have the beaglebone device segmented from the local network and on a Sim card, so it can't send unlimited data to the cloud.
 
@@ -20,14 +25,17 @@ Thus it should log at a much high frequency for ML training and log at a lower f
 
 The project includes a number of ways to live calculate and estime data, network, and storage usage and predict based on current data usage.
 
-## Config file details
+### Config file details
 
 This is what you define in the `config.txt` that is placed alongside the `bbb_logger` binary.
-```c
-int hiRateHz;       // polling rate (Hz) (HF, for ML training)
-int loRateHz;       // logging rate (Hz) (LF, for cloud storage)
-int maxFileKB;      // max log file size before rotation
+```sh
+100       # hiRateHz - polling rate (Hz) (HF, for ML training)
+4         # loRateHz - logging rate (Hz) (LF, for cloud storage)
+15        # maxLogFileKB - max log file size before rotation
+9500      # maxLogDirKB - max log file size before local deletion takes place (LF)*
+10000     # maxTrainDirKB - max train file size before local deletion takes place (HF)*
 ```
+\* This would result in data not uploaded to AWS. It's the total size of the directory, not individual file sizes, which is different from maxLogFileKB which is for 1 file.
 
 Since we don't want to continously store the Hi rate data, we introduced a file called `capture` that if set to `1` will store HF data at the frequency defined. If set to `0` it will only store LF data. 
 
@@ -40,7 +48,23 @@ You can also live watch the currently read data and system static with the file 
 watch -n0.2 cat live_data
 ```
 
-## Metrics
+### System details
+
+File tree while running
+```
+/home/debian
+├── bbb_logger_arm            (C binary)
+├── predictive_maintain.py    (ML model/email notifier)
+├── upload.py                 (cron to upload to AWS)
+├── config.txt                (config file for bbb_logger)
+├── capture                   (0 or 1, controls HF data capture)
+├── ip_address                (ip address of OPC-UA server)
+├── logs/                     (LF CSVs for cloud storage)
+├── train/                    (HF CSVs for ML)
+└── live_data                 (human-readable dashboard)
+```
+
+### Metrics
 
 Since each line in the csv represents one data point, we will average the size of a line and use for a number of calculations for storage.
 

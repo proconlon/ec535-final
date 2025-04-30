@@ -1,10 +1,11 @@
-This is crontab for the upload script
+# BeagleBone setup details
 
+This is crontab for the upload script:
 ```
 */5 * * * * /usr/bin/python3 /home/debian/upload.py >> /home/debian/upload.log 2>&1
 ```
 
-This is the systemd for the ML model which should be always running.
+This is the systemd for the ML model which should be always running. (`predictive_maintain.service`)
 ```sh
 [Unit]
 Description=Predictive Maintenance Model and Notifier
@@ -23,7 +24,7 @@ WantedBy=multi-user.target
 ```
 
 - Ensure that the BBB has one ethernet port to real ethernet and the other to the OPC-UA server. The actual `./bbb_logger <server ip>` is run with one arg as the ip address of the OPC-UA server.
-So you can add to systemd with this. Then place a file `server_ip` in the same dir.
+So you can add to systemd with this. Then place a file `server_ip` in the same dir. (`bbb_logger.service`)
 ```sh
 [Unit]
 Description=BeagleBone Black Main Logger
@@ -52,11 +53,11 @@ The home directory should look like this at minimum, with other files created au
 -rw-r--r-- 1 debian debian       2 Apr 29 01:16 capture
 -rw-r--r-- 1 debian debian      26 Apr 29 01:38 config.txt
 -rw-r--r-- 1 debian debian      12 Apr 29 00:33 ip_address
--rw-r--r-- 1 debian debian       2 Apr 29 01:40 predicitve_maintain.py
+-rw-r--r-- 1 debian debian       2 Apr 29 01:40 email_notif.py
 -rw-r--r-- 1 debian debian    1532 Apr 29 01:17 upload.py
 ```
 
 
-Lastly, we installed tailscale on the BBB for remote access. You should configure as `exit node` and `subnet router` so that you can access the OPC-UA server on the second ethernet interface remotely.
+Lastly, we installed tailscale on the BBB for remote access. You should configure as `exit node` and `subnet router` so that you can access the OPC-UA server on the second ethernet interface remotely. Thus the beagle bone becomes a powerful device for remote access.
 
 
