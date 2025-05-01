@@ -1,6 +1,6 @@
 raw csv most recent data:
 1745973055401014,168.23,50.39,0.86,14.62,PreInjection,0
-* No ML predictor running.
+2025-04-29 10:32:38, - Current failure probability: 0.04
 
 Timestamp: 1745973055401014     Temp=168.2°C
 Pressure=50.4psi        Vib=0.86g@14.6Hz

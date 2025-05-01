@@ -1,6 +1,8 @@
 # Predictive Maintenance & Data Logger for Industry 2.0
 EC535 Final Project
 
+[Demo Video Here](https://youtu.be/PAorCIHc_FU )
+
 ## Overview
 
 This project turns a BeagleBone Black into an edge-gateway that 
