@@ -1,4 +1,4 @@
-# Predictive Maintenance & Data Logger for Industry 2.0
+# Predictive Maintenance & Data Logger for Industry 4.0
 EC535 Final Project
 
 [Demo Video Here](https://youtu.be/PAorCIHc_FU )
