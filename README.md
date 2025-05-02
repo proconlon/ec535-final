@@ -16,6 +16,9 @@ This project turns a BeagleBone Black into an edge-gateway that
 5. Exposes everything remotely through Tailscale (so beaglebone can act as exit for factory devices)
    - Air gaps the factory floor behind the Tailscale exit node and allows remote access to those devices.
 
+System Overview:
+![Screenshot 2025-04-29 194717](https://github.com/user-attachments/assets/8d3aa680-598f-427f-8599-4cddd36640df)
+
 ## Config and Metrics
 
 This project tracks a number of metrics for data and storage saving reasons. This is important as sometimes factory floor would have the beaglebone device segmented from the local network and on a Sim card, so it can't send unlimited data to the cloud.
